@@ -1,0 +1,15 @@
+# Scala specific
+*.class
+*.log
+
+# sbt specific
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+.metadata/
+
+# Scala-IDE specific
+.scala_dependencies
