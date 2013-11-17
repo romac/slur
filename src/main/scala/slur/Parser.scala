@@ -6,41 +6,46 @@ import Scalaz._
 import scala.util.parsing.combinator._
 import scala.util.parsing.combinator.lexical.StdLexical
 
-class ParseError(val msg: String) extends SlurError {
+case class ParseError(val msg: String) extends SlurError {
   override def toString = s"Parse error: $msg" 
 }
 
-class SExprParsers extends JavaTokenParsers {
+class SExprParsers extends JavaTokenParsers with PackratParsers {
+  
+  type P[T] = PackratParser[T]
+  type PE = PackratParser[SExpr]
   
   override val whiteSpace = "".r
   
-  def space = """\s+""".r
+  lazy val space = """\s+""".r
   
-  def token: Parser[SExpr] = identifier | boolean | number | string | quoted
+  lazy val initial = letter | special
   
-  def identifier: Parser[SSymbol] = (initial ~ rep(subseqent)) ^^ { case (x ~ xs) => SSymbol(x + xs.mkString) }
+  lazy val letter = """[A-Za-z]""".r
   
-  def initial = letter | special
+  lazy val special = "!" | "$" | "%" | "&" | "+" | "-" | "*" | "/" | "<" | "=" | ">" | "?" | "^" | "_" | "~"
   
-  def letter = """[A-Za-z]""".r
+  lazy val subseqent = initial | digit 
   
-  def special = "!" | "$" | "%" | "&" | "+" | "-" | "*" | "/" | "<" | "=" | ">" | "?" | "^" | "_" | "~"
+  lazy val digit = """[\d]""".r
   
-  def subseqent = initial | digit 
+  lazy val token: PE = identifier | boolean | number | string | quoted
   
-  def digit = """[\d]""".r
+  lazy val identifier: PE = (initial ~ rep(subseqent)) ^^ { case (x ~ xs) => SSymbol(x + xs.mkString) }
   
-  def boolean = ("#t" | "#f") ^^ { b => SBoolean(b == "#t") }
+  lazy val boolean: PE = ("#t" | "#f") ^^ { b => SBoolean(b == "#t") }
   
-  def number = floatingPointNumber ^^ { n => SNumber(n.toDouble) }
+  lazy val number: PE = floatingPointNumber ^^ { n => SNumber(n.toDouble) }
   
-  def string = stringLiteral ^^ { s => SString(s.tail.init) }
+  lazy val string: PE = stringLiteral ^^ { s => SString(s.tail.init) }
   
-  def quoted = ("'" ~> expr) ^^ { e => SList(SSymbol("quote"), e) }
+  lazy val quoted: PE = ("'" ~> expr) ^^ { e => SList(SSymbol("quote"), e) }
   
-  def list: Parser[SList] = ("(" ~> repsep(expr, space) <~ ")") ^^ { xs => SList(xs: _*) } 
+  lazy val list: PE = repsep(expr, space) ^^ { xs => SList(xs: _*) }
   
-  def expr: Parser[SExpr] = token | list
+  lazy val dottedList: PE = (repsep(expr, space) ~ (space ~> "." ~> space ~> expr)) ^^ { case (head ~ tail) => SDottedList(head, tail) }
+  
+  lazy val expr: PE = token | ("(" ~> (list ||| dottedList) <~ ")")
   
 }
 
@@ -49,16 +54,16 @@ object Parser extends SExprParsers {
   import java.io.FileReader
   
   def parse(in: String): Validation[ParseError, SExpr] = {
-    parseAll(expr, in) match {
+    parseAll(phrase(expr), in) match {
       case Success(e, _) => e.success
-      case f: NoSuccess  => new ParseError(f.msg).failure
+      case f: NoSuccess  => ParseError(f.msg).failure
     }
   }
   
   def parse(in: FileReader): Validation[ParseError, SExpr] = {
-    parseAll(expr, in) match {
+    parseAll(phrase(expr), in) match {
       case Success(e, _) => e.success
-      case f: NoSuccess  => new ParseError(f.msg).failure
+      case f: NoSuccess  => ParseError(f.msg).failure
     }
   }
 }
