@@ -24,10 +24,12 @@ trait Builtins { self: Runtime =>
     
     def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr]
     
-    def apply(args: List[SExpr]): Validation[RuntimeError, SExpr] = for {
-      evaled <- args.map(eval).sequenceV
-      result <- applyEvaled(evaled)
-    } yield result
+    def apply(args: List[SExpr]): Validation[RuntimeError, SExpr] = {
+      for {
+        evaled <- args.map(eval).sequenceV
+        result <- applyEvaled(evaled)
+      } yield result
+    }
   }
   
   abstract class RawOperation(name: String) extends Operation(name) {
@@ -138,6 +140,7 @@ trait Builtins { self: Runtime =>
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(x :: xs) => x.success
+        case SDottedList(x :: xs, _) => x.success
         case other => TypeMismatch("list", other.typeName).failure
       }
       case _ => WrongArgumentNumber(name, 1, args.length).failure
@@ -149,6 +152,8 @@ trait Builtins { self: Runtime =>
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(x :: xs) => SList(xs).success
+        case SDottedList(List(_), x) => x.success
+        case SDottedList(_ :: xs, x) => SDottedList(xs, x).success
         case other => TypeMismatch("list", other.typeName).failure
       }
       case _ => WrongArgumentNumber(name, 1, args.length).failure
@@ -161,6 +166,7 @@ trait Builtins { self: Runtime =>
       case arg1 :: arg2 :: Nil => (arg1, arg2) match {
         case (x, SList(Nil)) => SList(x :: Nil).success
         case (x, SList(xs)) => SList(x :: xs).success
+        case (x, SDottedList(xs, xlast)) => SDottedList(x :: xs, xlast).success
         case (x, y) => SList(x :: y :: Nil).success
       }
       case _ => WrongArgumentNumber(name, 2, args.length).failure
