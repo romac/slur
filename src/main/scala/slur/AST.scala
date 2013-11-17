@@ -31,6 +31,7 @@ case class SDottedList(elements: List[SExpr], override val last: SExpr) extends 
   
   def length = elements.length + 1
   def apply(idx: Int): SExpr = (elements :+ last).apply(idx)
+  override def iterator = (elements :+ last).iterator
   override def toString =  "(" + elements.mkString(" ") + " . " + last + ")"
 }
 
