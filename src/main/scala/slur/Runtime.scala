@@ -35,7 +35,7 @@ case class UnboundVariable(symbol: SSymbol) extends RuntimeError {
   def msg = s"Variable '$symbol' is unbound."
 }
 
-class Runtime(val env: Env) extends Builtins {
+class Runtime(val env: Env = new Env) extends Builtins {
   
   def eval(expr: SExpr): Validation[RuntimeError, SExpr] = expr match {
     case SList(SSymbol(func) :: args) => call(func, args.toList)

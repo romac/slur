@@ -5,7 +5,7 @@ import Scalaz._
 
 import java.util.Scanner
 
-object REPL {
+class REPL(scanner: Scanner = new Scanner(System.in), runtime: Runtime = new Runtime) {
   
   sealed trait Input
   case class Expression(expr: String) extends Input
@@ -25,33 +25,30 @@ object REPL {
     override def toString = ""
   }
   
-  val scanner = new Scanner(System.in)
-  val runtime = new Runtime(new Env)
-  
   val commands = Map(
       "quit" -> quit _,
       "help" -> help _
   )
   
-  def main(args: Array[String]): Unit = {
+  def run(): Unit = {
     println("Slur 0.1, Read-Eval-Print-Loop")
-    repl
+    repl()
   }
   
-  def quit: Output = {
+  def quit(): Output = {
     System.exit(0)
     None
   }
   
-  def help: Output = Info("""Commands:
+  def help(): Output = Info("""Commands:
   - quit: Quit the REPL
   - help: Display this help""")
   
-  def repl: Output = {
+  def repl(): Output = {
     val input = read
     val output = eval(input)
     println(output)
-    repl
+    repl()
   }
   
   def read: Input = {
