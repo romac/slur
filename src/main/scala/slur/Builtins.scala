@@ -8,7 +8,7 @@ import Implicits._
 
 trait Builtins { self: Runtime => 
   
-  trait PackUnpack[A, B] { self: Operation =>
+  trait PackUnpack[A, B] { self: Function =>
   
     val packer: B => SExpr
     val unpacker: SExpr => Validation[RuntimeError, A]
@@ -19,8 +19,13 @@ trait Builtins { self: Runtime =>
     def unpackError = s"Some arguments of '$name' are of unexpected type."
   }
   
-  abstract class Operation(val name: String)
+  abstract class Function(val name: String)
     extends (List[SExpr] => Validation[RuntimeError, SExpr]) {
+    
+    def apply(args: List[SExpr]): Validation[RuntimeError, SExpr]
+  }
+  
+  abstract class StdFunction(name: String) extends Function(name) {
     
     def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr]
     
@@ -32,12 +37,20 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  abstract class RawOperation(name: String) extends Operation(name) {
-    def applyEvaled(args: List[SExpr]) = ???
+  abstract class UnaryFunction[A, B](name: String)
+    extends StdFunction(name) with PackUnpack[A, B] {
+    
+    def op(a: A): B
+    
+    def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
+      case x :: Nil => for (a <- unpacker(x)) yield pack(op(a))
+      case _ => WrongArgumentNumber(name, 1, args.length).failure 
+    }
+    
   }
   
-  abstract class BinaryOperation[A, B](name: String)
-    extends Operation(name) with PackUnpack[A, B] {
+  abstract class BinaryFunction[A, B](name: String)
+    extends StdFunction(name) with PackUnpack[A, B] {
     
     def op(a: A, b: A): B
     
@@ -52,8 +65,8 @@ trait Builtins { self: Runtime =>
     
   }
   
-  abstract class FoldOperation[T, Z](name: String)
-    extends Operation(name) with PackUnpack[T, Z] {
+  abstract class FoldFunction[T, Z](name: String)
+    extends StdFunction(name) with PackUnpack[T, Z] {
     
     val zero: Z
     def fold(acc: Z, elem: T): Z
@@ -65,8 +78,8 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  abstract class ReduceOperation[A](name: String)
-    extends Operation(name) with PackUnpack[A, A] {
+  abstract class ReduceFunction[A](name: String)
+    extends StdFunction(name) with PackUnpack[A, A] {
     
     val zero: A
     def reduce(a: A, b: A): A
@@ -78,44 +91,84 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object add extends ReduceOperation[Double]("+") {
+  object add extends BinaryFunction[Double, Double]("+") {
+    val packer = SNumber.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a + b
+  }
+  
+  object diff extends BinaryFunction[Double, Double]("-") {
+    val packer = SNumber.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a - b
+  }
+  
+  object mul extends BinaryFunction[Double, Double]("*") {
+    val packer = SNumber.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a * b
+  }
+  
+  object div extends BinaryFunction[Double, Double]("/") {
+    val packer = SNumber.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a / b
+  }
+  
+  object neq extends BinaryFunction[Double, Boolean]("/=") {
+    val packer = SBoolean.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a != b
+  }
+  
+  object gt extends BinaryFunction[Double, Boolean](">") {
+    val packer = SBoolean.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a > b
+  }
+  object gte extends BinaryFunction[Double, Boolean](">=") {
+    val packer = SBoolean.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a >= b
+  }
+  
+  object lt extends BinaryFunction[Double, Boolean]("<") {
+    val packer = SBoolean.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a < b
+  }
+  object lte extends BinaryFunction[Double, Boolean]("<=") {
+    val packer = SBoolean.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a <= b
+  }
+  
+  object eq extends BinaryFunction[Double, Boolean]("=") {
+    val packer = SBoolean.apply _
+    val unpacker = SNumber.unpack _
+    def op(a: Double, b: Double) = a == b
+  }
+  
+  object and extends BinaryFunction[Boolean, Boolean]("&&") {
+    val packer = SBoolean.apply _
+    val unpacker = SBoolean.unpack _
+    def op(a: Boolean, b: Boolean) = a && b
+  }
+  
+  object or extends BinaryFunction[Boolean, Boolean]("||") {
+    val packer = SBoolean.apply _
+    val unpacker = SBoolean.unpack _
+    def op(a: Boolean, b: Boolean) = a || b
+  }
+  
+  object sum extends ReduceFunction[Double]("sum") {
     val zero = 0.0
     val packer = SNumber.apply _
     val unpacker = SNumber.unpack _
     def reduce(a: Double, b: Double) = a + b
   }
   
-  object diff extends ReduceOperation[Double]("-") {
-    val zero = 0.0
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def reduce(a: Double, b: Double) = a - b
-  }
-  
-  object mul extends ReduceOperation[Double]("*") {
-    val zero = 1.0
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def reduce(a: Double, b: Double) = a * b
-  }
-  
-  object div extends BinaryOperation[Double, Double]("/") {
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a / b
-  }
-  
-  object eq extends Operation("=") {
-    
-    def applyEvaled(args: List[SExpr]) = { 
-      if(args.length >= 2)
-        SBoolean(args.tail.map(_ == args.head).forall(_ == true)).success
-      else
-        WrongArgumentNumber(name, 2, args.length).failure
-    }
-  }
-  
-  object quote extends RawOperation("quote") {
+  object quote extends Function("quote") {
     
     override def apply(args: List[SExpr]) = args match {
       case x :: Nil => x.success
@@ -123,7 +176,7 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object ifStmt extends RawOperation("if") {
+  object ifStmt extends Function("if") {
     
     override def apply(args: List[SExpr]) = args match {
       case pred :: conseq :: alt :: Nil => eval(pred).flatMap {
@@ -135,7 +188,7 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object car extends Operation("car") {
+  object car extends StdFunction("car") {
     
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
@@ -147,7 +200,7 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object cdr extends Operation("cdr") {
+  object cdr extends StdFunction("cdr") {
     
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
@@ -160,7 +213,7 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object cons extends Operation("cons") {
+  object cons extends StdFunction("cons") {
     
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: arg2 :: Nil => (arg1, arg2) match {
@@ -173,7 +226,7 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object isNull extends Operation("null?") {
+  object isNull extends StdFunction("null?") {
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(Nil) => SBoolean(true).success
@@ -183,29 +236,49 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object list extends Operation("list") {
+  object list extends StdFunction("list") {
     def applyEvaled(args: List[SExpr]) = {
       if(!args.isEmpty) SList(args).success
       else WrongArgumentNumber(name, 1, args.length).failure
     }
   }
   
-  object length extends Operation("length") {
+  object length extends StdFunction("length") {
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(xs) => SNumber(xs.length).success
-        case other => TypeMismatch("list", other.typeName).failure
+        case other => TypeMismatch("List", other.typeName).failure
       }
       case _ => WrongArgumentNumber(name, 1, args.length).failure
     }
-  } 
+  }
   
-  val builtins: Map[String, Operation] = Map(
+  object define extends Function("define") {
+    def apply(args: List[SExpr]) = args match {
+      case x :: y :: Nil => (x, eval(y)) match {
+        case (SSymbol(name), Success(value)) => {
+          env += (name -> value)
+          value.success
+        }
+        case (_, Failure(f)) => f.failure
+        case (other, _) => TypeMismatch("Symbol", other.typeName).failure
+      }
+      case _ => WrongArgumentNumber(name, 2, args.length).failure
+    }
+  }
+  
+  val builtins: Map[String, Function] = Map(
       add.name -> add,
       diff.name -> diff,
       mul.name -> mul,
       div.name -> div,
       eq.name -> eq,
+      neq.name -> neq,
+      lt.name -> lt,
+      lte.name -> lte,
+      gt.name -> gt,
+      gte.name -> gte,
+      sum.name -> sum,
       quote.name -> quote,
       ifStmt.name -> ifStmt,
       car.name -> car,
@@ -213,7 +286,8 @@ trait Builtins { self: Runtime =>
       cons.name -> cons,
       isNull.name -> isNull,
       length.name -> length,
-      list.name -> list
+      list.name -> list,
+      define.name -> define
   )
   
 }

@@ -3,8 +3,6 @@ package slur
 import scalaz._
 import Scalaz._
 
-class Env
-
 abstract class SlurError {
   def msg: String
   override def toString = s"Error: $msg"
@@ -37,7 +35,7 @@ case class UnboundVariable(symbol: SSymbol) extends RuntimeError {
   def msg = s"Variable '$symbol' is unbound."
 }
 
-class Runtime(env: Env) extends Builtins {
+class Runtime(val env: Env) extends Builtins {
   
   def eval(expr: SExpr): Validation[RuntimeError, SExpr] = expr match {
     case SList(SSymbol(func) :: args) => call(func, args.toList)
@@ -45,7 +43,10 @@ class Runtime(env: Env) extends Builtins {
     case SString(_) => expr.success
     case SBoolean(_) => expr.success
     case SList(func :: _) => NotFunction(func).failure
-    case SSymbol(_) => TypeError(s"Cannot evaluate symbol '$expr'").failure
+    case v @ SSymbol(name) => env(name) match {
+      case Some(value) => value.success
+      case None => UnboundVariable(v).failure
+    }
     case _ => BadSpecialForm(expr).failure
   }
   
