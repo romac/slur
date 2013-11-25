@@ -7,6 +7,7 @@ import scalaz._
 object CLI {
 
   val runtime = new Runtime
+  val env = runtime.defaultEnv
   
   def main(args: Array[String]): Unit = args match {
     case Array() => runREPL()
@@ -15,14 +16,14 @@ object CLI {
   
   def runREPL() = {
     val scanner = new Scanner(System.in)
-    val repl = new REPL(scanner, runtime)
+    val repl = new REPL(scanner, runtime, env)
     
     repl.run()
   }
   
   def runFile(fileName: String) = {
     val fileReader = new FileReader(fileName)
-    val result = Parser.parse(fileReader).flatMap(runtime.eval(_))
+    val result = Parser.parse(fileReader).flatMap(runtime.eval(env)(_))
     
     display(result)
   }

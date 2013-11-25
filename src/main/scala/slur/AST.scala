@@ -35,10 +35,10 @@ case class SDottedList(elements: List[SExpr], override val last: SExpr) extends 
   override def toString =  "(" + elements.mkString(" ") + " . " + last + ")"
 }
 
-case class SNativeFunction(name: String, f: List[SExpr] => Validation[RuntimeError, SExpr]) extends SExpr {
+case class SNativeFunction(name: String, f: (List[SExpr], Env) => Validation[RuntimeError, SExpr]) extends SExpr {
   val typeName = "Native Function"
   
-  def apply(args: List[SExpr]) = f(args)
+  def apply(args: List[SExpr], env: Env) = f(args, env)
   override def toString = s"<native function '$name'>" 
 }
 

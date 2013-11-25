@@ -13,36 +13,32 @@ trait Builtins { self: Runtime =>
     val packer: B => SExpr
     val unpacker: SExpr => Validation[RuntimeError, A]
     
-    protected def unpack(xs: List[SExpr]): Validation[RuntimeError, List[A]] = {
-      println("Unpacking " ++ xs.mkString(", "))
+    protected def unpack(xs: List[SExpr]): Validation[RuntimeError, List[A]] =
       xs.map(unpacker).sequenceV
-    }
     
-    protected def unpack(e: SExpr): Validation[RuntimeError, A] = {
-      println("Unpacking " ++ e.toString)
+    protected def unpack(e: SExpr): Validation[RuntimeError, A] =
       unpacker(e)
-    }
     
-    protected def pack(value: B): SExpr = packer(value)
+    protected def pack(value: B): SExpr =
+      packer(value)
     
     def unpackError = s"Some arguments of '$name' are of unexpected type."
   }
   
   abstract class Function(val name: String)
-    extends (List[SExpr] => Validation[RuntimeError, SExpr]) {
+    extends ((List[SExpr], Env) => Validation[RuntimeError, SExpr]) {
     
-    def apply(args: List[SExpr]): Validation[RuntimeError, SExpr]
+    def apply(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr]
   }
   
   abstract class StdFunction(name: String) extends Function(name) {
     
-    def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr]
+    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr]
     
-    def apply(args: List[SExpr]): Validation[RuntimeError, SExpr] = {
-      println(s"Applying '$name' to $args")
+    def apply(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = {
       for {
-        evaled <- args.map(eval).sequenceV
-        result <- applyEvaled(evaled)
+        evaled <- args.map(eval(env)).sequenceV
+        result <- applyEvaled(evaled, env)
       } yield result
     }
   }
@@ -52,7 +48,7 @@ trait Builtins { self: Runtime =>
     
     def op(a: A): B
     
-    def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
+    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
       case x :: Nil => for (a <- unpack(x)) yield pack(op(a))
       case _ => WrongArgumentNumber(name, 1, args.length).failure 
     }
@@ -64,7 +60,7 @@ trait Builtins { self: Runtime =>
     
     def op(a: A, b: A): B
     
-    def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
+    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
       case x :: y :: Nil =>
         for {
           a <- unpack(x)
@@ -81,10 +77,11 @@ trait Builtins { self: Runtime =>
     val zero: Z
     def fold(acc: Z, elem: T): Z
     
-    def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
+    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
       case Nil => pack(zero).success
       case x :: xs =>
-        for (unpacked <- unpack(args)) yield pack(unpacked.foldLeft(zero)(fold))
+        for (unpacked <- unpack(args))
+          yield pack(unpacked.foldLeft(zero)(fold))
     }
   }
   
@@ -94,10 +91,11 @@ trait Builtins { self: Runtime =>
     val zero: A
     def reduce(a: A, b: A): A
     
-    def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
+    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
       case Nil => pack(zero).success
       case x :: xs =>
-        for (unpacked <- unpack(args)) yield pack(unpacked.reduce(reduce))
+        for (unpacked <- unpack(args))
+          yield pack(unpacked.reduce(reduce))
     }
   }
   
@@ -148,17 +146,17 @@ trait Builtins { self: Runtime =>
   }
   
   object quote extends Function("quote") {
-    override def apply(args: List[SExpr]) = args match {
+    override def apply(args: List[SExpr], env: Env) = args match {
       case x :: Nil => x.success
       case _ => WrongArgumentNumber(name, 1, args.length).failure 
     }
   }
   
   object ifStmt extends Function("if") {
-    override def apply(args: List[SExpr]) = args match {
-      case pred :: conseq :: alt :: Nil => eval(pred).flatMap {
-        case SBoolean(true) => eval(conseq)
-        case SBoolean(false) => eval(alt)
+    override def apply(args: List[SExpr], env: Env) = args match {
+      case pred :: conseq :: alt :: Nil => eval(env)(pred).flatMap {
+        case SBoolean(true) => eval(env)(conseq)
+        case SBoolean(false) => eval(env)(alt)
         case other => TypeMismatch("boolean", other.typeName).failure
       }
       case _ => WrongArgumentNumber(name, 3, args.length).failure
@@ -166,7 +164,7 @@ trait Builtins { self: Runtime =>
   }
   
   object car extends StdFunction("car") {
-    def applyEvaled(args: List[SExpr]) = args match {
+    def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(x :: xs) => x.success
         case SDottedList(x :: xs, _) => x.success
@@ -177,7 +175,7 @@ trait Builtins { self: Runtime =>
   }
   
   object cdr extends StdFunction("cdr") {
-    def applyEvaled(args: List[SExpr]) = args match {
+    def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(x :: xs) => SList(xs).success
         case SDottedList(List(_), x) => x.success
@@ -189,7 +187,7 @@ trait Builtins { self: Runtime =>
   }
   
   object cons extends StdFunction("cons") {
-    def applyEvaled(args: List[SExpr]) = args match {
+    def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: arg2 :: Nil => (arg1, arg2) match {
         case (x, SList(Nil)) => SList(x :: Nil).success
         case (x, SList(xs)) => SList(x :: xs).success
@@ -201,7 +199,7 @@ trait Builtins { self: Runtime =>
   }
   
   object isNull extends StdFunction("null?") {
-    def applyEvaled(args: List[SExpr]) = args match {
+    def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(Nil) => SBoolean(true).success
         case _ => SBoolean(false).success
@@ -211,14 +209,14 @@ trait Builtins { self: Runtime =>
   }
   
   object list extends StdFunction("list") {
-    def applyEvaled(args: List[SExpr]) = {
+    def applyEvaled(args: List[SExpr], env: Env) = {
       if(!args.isEmpty) SList(args).success
       else WrongArgumentNumber(name, 1, args.length).failure
     }
   }
   
   object length extends StdFunction("length") {
-    def applyEvaled(args: List[SExpr]) = args match {
+    def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(xs) => SNumber(xs.length).success
         case other => TypeMismatch("List", other.typeName).failure
@@ -228,10 +226,10 @@ trait Builtins { self: Runtime =>
   }
   
   object define extends Function("define") {
-    def apply(args: List[SExpr]) = args match {
+    def apply(args: List[SExpr], env: Env) = args match {
       
       // (define var expr)
-      case SSymbol(name) :: expr :: Nil => eval(expr) match {
+      case SSymbol(name) :: expr :: Nil => eval(env)(expr) match {
         case Success(value) => {
           env += (name -> value)
           value.success
@@ -256,7 +254,7 @@ trait Builtins { self: Runtime =>
   }
   
   object lambda extends Function("lambda") {
-    def apply(args: List[SExpr]) = args match {
+    def apply(args: List[SExpr], env: Env) = args match {
       
       // (lambda (param1 param2 ... paramN) body)
       case SList(params) :: body =>
@@ -279,5 +277,11 @@ trait Builtins { self: Runtime =>
                 list, define, lambda)
   
   def builtins = ops.map(op => op.name -> op).toMap
+  
+  def defaultEnv = {
+    val env = new Env
+    env ++= builtins.map(b => (b._1, SNativeFunction(b._1, b._2)))
+    env
+  }
   
 }

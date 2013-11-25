@@ -5,7 +5,7 @@ import Scalaz._
 
 import java.util.Scanner
 
-class REPL(scanner: Scanner = new Scanner(System.in), runtime: Runtime = new Runtime) {
+class REPL(scanner: Scanner = new Scanner(System.in), runtime: Runtime = new Runtime, env: Env = new Env) {
   
   sealed trait Input
   case class Expression(expr: String) extends Input
@@ -63,7 +63,7 @@ class REPL(scanner: Scanner = new Scanner(System.in), runtime: Runtime = new Run
   }
   
   def eval(input: Input): Output = input match {
-    case Expression(raw) => Parser.parse(raw).flatMap(runtime.eval(_)) match {
+    case Expression(raw) => Parser.parse(raw).flatMap(runtime.eval(env)(_)) match {
       case Success(expr) => Value(expr)
       case Failure(err) => Error(err.msg)
     }

@@ -27,5 +27,25 @@ class Env(val parent: Option[Env] = None) {
     bindings.get(name).orElse(lookupParent(name))
   
   def extend = new Env(Some(this))
+  
+  override def toString = asString(List.fill(parentsNum)("  ").mkString)
+    
+  protected def asString(indent: String): String = {
+    val str = bindings.map(b => b._1 + " = " + b._2).map(indent + _).mkString("\n")
+    val parentStr = parent match {
+      case Some(env) => env.asString(indent.substring(2)) + "\n"
+      case None => ""
+    }
+    
+    parentStr + str
+  }
+  
+  protected def parentsNum: Int = {
+    def loop(n: Int) = parent match {
+      case Some(p) => p.parentsNum + 1
+      case None => 0
+    }
+    loop(0)
+  }
     
 }
