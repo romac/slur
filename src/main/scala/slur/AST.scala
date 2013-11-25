@@ -35,9 +35,26 @@ case class SDottedList(elements: List[SExpr], override val last: SExpr) extends 
   override def toString =  "(" + elements.mkString(" ") + " . " + last + ")"
 }
 
+case class SNativeFunction(name: String, f: List[SExpr] => Validation[RuntimeError, SExpr]) extends SExpr {
+  val typeName = "Native Function"
+  
+  def apply(args: List[SExpr]) = f(args)
+  override def toString = s"<native function '$name'>" 
+}
+
+case class SLambda(params: List[String], vararg: Option[String], body: List[SExpr], closure: Env) extends SExpr {
+  val typeName = "Lambda"
+  
+  override def toString =
+    "(lambda (" ++ params.mkString(" ") ++ (vararg match {
+      case Some(arg) => " . " ++ arg
+      case None => ""
+    }) ++ ") ...)"
+}
+
 case class SSymbol(name: String)    extends SExpr {
   val typeName = "Symbol"
-    
+  
   override def toString = name
 }
 

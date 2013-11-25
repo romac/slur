@@ -47,6 +47,8 @@ class SExprParsers extends JavaTokenParsers with PackratParsers {
   
   lazy val expr: PE = token | ("(" ~> (list ||| dottedList) <~ ")")
   
+  lazy val program: P[List[SExpr]] = phrase(expr *)
+  
 }
 
 object Parser extends SExprParsers {

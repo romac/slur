@@ -13,7 +13,16 @@ trait Builtins { self: Runtime =>
     val packer: B => SExpr
     val unpacker: SExpr => Validation[RuntimeError, A]
     
-    protected def unpack(xs: List[SExpr]): Validation[RuntimeError, List[A]] = xs.map(unpacker).sequenceV
+    protected def unpack(xs: List[SExpr]): Validation[RuntimeError, List[A]] = {
+      println("Unpacking " ++ xs.mkString(", "))
+      xs.map(unpacker).sequenceV
+    }
+    
+    protected def unpack(e: SExpr): Validation[RuntimeError, A] = {
+      println("Unpacking " ++ e.toString)
+      unpacker(e)
+    }
+    
     protected def pack(value: B): SExpr = packer(value)
     
     def unpackError = s"Some arguments of '$name' are of unexpected type."
@@ -30,6 +39,7 @@ trait Builtins { self: Runtime =>
     def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr]
     
     def apply(args: List[SExpr]): Validation[RuntimeError, SExpr] = {
+      println(s"Applying '$name' to $args")
       for {
         evaled <- args.map(eval).sequenceV
         result <- applyEvaled(evaled)
@@ -43,7 +53,7 @@ trait Builtins { self: Runtime =>
     def op(a: A): B
     
     def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
-      case x :: Nil => for (a <- unpacker(x)) yield pack(op(a))
+      case x :: Nil => for (a <- unpack(x)) yield pack(op(a))
       case _ => WrongArgumentNumber(name, 1, args.length).failure 
     }
     
@@ -57,8 +67,8 @@ trait Builtins { self: Runtime =>
     def applyEvaled(args: List[SExpr]): Validation[RuntimeError, SExpr] = args match {
       case x :: y :: Nil =>
         for {
-          a <- unpacker(x)
-          b <- unpacker(y)
+          a <- unpack(x)
+          b <- unpack(y)
         } yield pack(op(a, b))
       case _ => WrongArgumentNumber(name, 2, args.length).failure 
     }
@@ -91,75 +101,44 @@ trait Builtins { self: Runtime =>
     }
   }
   
-  object add extends BinaryFunction[Double, Double]("+") {
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a + b
+  def numBinOp(name: String)(_op: (Double, Double) => Double): Function = {
+    new BinaryFunction[Double, Double](name) {
+      val packer = SNumber.apply _
+      val unpacker = SNumber.unpack _
+      def op(a: Double, b: Double) = _op(a, b)
+    }
   }
   
-  object diff extends BinaryFunction[Double, Double]("-") {
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a - b
+  def boolBinOp(name: String)(_op: (Boolean, Boolean) => Boolean): Function = {
+    new BinaryFunction[Boolean, Boolean](name) {
+      val packer = SBoolean.apply _
+      val unpacker = SBoolean.unpack _
+      def op(a: Boolean, b: Boolean) = _op(a, b)
+    }
   }
   
-  object mul extends BinaryFunction[Double, Double]("*") {
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a * b
+  def numBoolBinOp(name: String)(_op: (Double, Double) => Boolean): Function = {
+    new BinaryFunction[Double, Boolean](name) {
+      val packer = SBoolean.apply _
+      val unpacker = SNumber.unpack _
+      def op(a: Double, b: Double) = _op(a, b)
+    }
   }
   
-  object div extends BinaryFunction[Double, Double]("/") {
-    val packer = SNumber.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a / b
-  }
+  val add = numBinOp("+")(_ + _)
+  val diff = numBinOp("-")(_ - _)
+  val mul = numBinOp("*")(_ * _)
+  val div = numBinOp("/")(_ / _)
   
-  object neq extends BinaryFunction[Double, Boolean]("/=") {
-    val packer = SBoolean.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a != b
-  }
+  val eq = numBoolBinOp("=")(_ == _)
+  val neq = numBoolBinOp("/=")(_ != _)
+  val gt = numBoolBinOp(">")(_ > _)
+  val gte = numBoolBinOp(">=")(_ >= _)
+  val lt = numBoolBinOp("<")(_ < _)
+  val lte = numBoolBinOp("<=")(_ <= _)
   
-  object gt extends BinaryFunction[Double, Boolean](">") {
-    val packer = SBoolean.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a > b
-  }
-  object gte extends BinaryFunction[Double, Boolean](">=") {
-    val packer = SBoolean.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a >= b
-  }
-  
-  object lt extends BinaryFunction[Double, Boolean]("<") {
-    val packer = SBoolean.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a < b
-  }
-  object lte extends BinaryFunction[Double, Boolean]("<=") {
-    val packer = SBoolean.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a <= b
-  }
-  
-  object eq extends BinaryFunction[Double, Boolean]("=") {
-    val packer = SBoolean.apply _
-    val unpacker = SNumber.unpack _
-    def op(a: Double, b: Double) = a == b
-  }
-  
-  object and extends BinaryFunction[Boolean, Boolean]("&&") {
-    val packer = SBoolean.apply _
-    val unpacker = SBoolean.unpack _
-    def op(a: Boolean, b: Boolean) = a && b
-  }
-  
-  object or extends BinaryFunction[Boolean, Boolean]("||") {
-    val packer = SBoolean.apply _
-    val unpacker = SBoolean.unpack _
-    def op(a: Boolean, b: Boolean) = a || b
-  }
+  val and = boolBinOp("&&")(_ && _)
+  val or = boolBinOp("||")(_ || _)
   
   object sum extends ReduceFunction[Double]("sum") {
     val zero = 0.0
@@ -169,7 +148,6 @@ trait Builtins { self: Runtime =>
   }
   
   object quote extends Function("quote") {
-    
     override def apply(args: List[SExpr]) = args match {
       case x :: Nil => x.success
       case _ => WrongArgumentNumber(name, 1, args.length).failure 
@@ -177,7 +155,6 @@ trait Builtins { self: Runtime =>
   }
   
   object ifStmt extends Function("if") {
-    
     override def apply(args: List[SExpr]) = args match {
       case pred :: conseq :: alt :: Nil => eval(pred).flatMap {
         case SBoolean(true) => eval(conseq)
@@ -189,7 +166,6 @@ trait Builtins { self: Runtime =>
   }
   
   object car extends StdFunction("car") {
-    
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(x :: xs) => x.success
@@ -201,7 +177,6 @@ trait Builtins { self: Runtime =>
   }
   
   object cdr extends StdFunction("cdr") {
-    
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: Nil => arg1 match {
         case SList(x :: xs) => SList(xs).success
@@ -214,7 +189,6 @@ trait Builtins { self: Runtime =>
   }
   
   object cons extends StdFunction("cons") {
-    
     def applyEvaled(args: List[SExpr]) = args match {
       case arg1 :: arg2 :: Nil => (arg1, arg2) match {
         case (x, SList(Nil)) => SList(x :: Nil).success
@@ -255,39 +229,55 @@ trait Builtins { self: Runtime =>
   
   object define extends Function("define") {
     def apply(args: List[SExpr]) = args match {
-      case x :: y :: Nil => (x, eval(y)) match {
-        case (SSymbol(name), Success(value)) => {
+      
+      // (define var expr)
+      case SSymbol(name) :: expr :: Nil => eval(expr) match {
+        case Success(value) => {
           env += (name -> value)
           value.success
         }
-        case (_, Failure(f)) => f.failure
-        case (other, _) => TypeMismatch("Symbol", other.typeName).failure
+        case f @ Failure(_) => f
       }
-      case _ => WrongArgumentNumber(name, 2, args.length).failure
+      
+      // (define (name param1 param2 ... paramN) body)
+      case SList(SSymbol(name) :: params) :: body =>
+        val lambda = SLambda(params.map(_.toString), None, body, env.extend)
+        env += (name -> lambda)
+        lambda.success
+        
+      // (define (name param1 param2 ... paramN . varArgs) body)
+      case SDottedList(SSymbol(name) :: params, varargs) :: body => 
+        val lambda = SLambda(params.map(_.toString), Some(varargs.toString), body, env.extend)
+        env += (name -> lambda)
+        lambda.success
+      
+      case (other :: _) => TypeMismatch("Symbol", other.typeName).failure
     }
   }
   
-  val builtins: Map[String, Function] = Map(
-      add.name -> add,
-      diff.name -> diff,
-      mul.name -> mul,
-      div.name -> div,
-      eq.name -> eq,
-      neq.name -> neq,
-      lt.name -> lt,
-      lte.name -> lte,
-      gt.name -> gt,
-      gte.name -> gte,
-      sum.name -> sum,
-      quote.name -> quote,
-      ifStmt.name -> ifStmt,
-      car.name -> car,
-      cdr.name -> cdr,
-      cons.name -> cons,
-      isNull.name -> isNull,
-      length.name -> length,
-      list.name -> list,
-      define.name -> define
-  )
+  object lambda extends Function("lambda") {
+    def apply(args: List[SExpr]) = args match {
+      
+      // (lambda (param1 param2 ... paramN) body)
+      case SList(params) :: body =>
+        SLambda(params.map(_.toString), None, body, env.extend).success
+        
+      // (lambda (param1 param2 ... paramN . varargs) body)
+      case SDottedList(params, varargs) :: body =>
+        SLambda(params.map(_.toString), Some(varargs.toString), body, env.extend).success
+        
+      // (lambda varargs body)
+      case varargs @ SSymbol(_) :: body =>
+        SLambda(Nil, Some(varargs.toString), body, env.extend).success
+        
+      case expr => BadLambdaDef(expr).failure
+    }
+  }
+  
+  private val ops = List(add, diff, mul, div, eq, neq, lt, lte, gt, gte,
+                sum, quote, ifStmt, car, cdr, cons, isNull, length,
+                list, define, lambda)
+  
+  def builtins = ops.map(op => op.name -> op).toMap
   
 }

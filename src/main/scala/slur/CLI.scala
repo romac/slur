@@ -29,7 +29,7 @@ object CLI {
   
   def display(result: Validation[SlurError, SExpr]) = result match {
     case Success(value) => success(value)
-    case Failure(err) => error(err.msg)
+    case Failure(err) => error(err)
   }
   
   def success(value: SExpr) = {
@@ -38,6 +38,12 @@ object CLI {
   
   def error(msg: String) = {
     println(msg)
+    System.exit(1)
+  }
+  
+  def error(e: SlurError) = {
+    println(e.msg)
+    e.printStackTrace();
     System.exit(1)
   }
   

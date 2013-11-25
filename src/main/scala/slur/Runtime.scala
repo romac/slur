@@ -2,8 +2,9 @@ package slur
 
 import scalaz._
 import Scalaz._
+import Implicits._
 
-abstract class SlurError {
+abstract class SlurError extends Exception {
   def msg: String
   override def toString = s"Error: $msg"
 }
@@ -11,7 +12,7 @@ abstract class SlurError {
 abstract class RuntimeError extends SlurError
 
 case class TypeMismatch(expected: String, found: SExpr) extends RuntimeError {
-  def msg = s"Invalid type: expected '$expected', found '$found'."
+  def msg = s"Invalid type: expected '$expected', found '$found'. Stack: "
 }
 
 case class TypeError(_msg: String) extends RuntimeError {
@@ -25,20 +26,22 @@ case class BadSpecialForm(expr: SExpr) extends RuntimeError {
 case class WrongArgumentNumber(func: String, expected: Int, found: Int) extends RuntimeError {
   def msg = s"Wrong argument number: Function '$func' expects $expected arguments, found $found."   
 }
-case class FunctionNotFound(func: String) extends RuntimeError {
-  def msg = s"Function '$func' not found." 
-}
 case class NotFunction(func: SExpr) extends RuntimeError {
   def msg = s"'$func' is not a function."
 }
 case class UnboundVariable(symbol: SSymbol) extends RuntimeError {
   def msg = s"Variable '$symbol' is unbound."
 }
+case class BadLambdaDef(expr: SExpr) extends RuntimeError {
+  def msg = s"$expr is not a valid lambda definition."
+}
 
-class Runtime(val env: Env = new Env) extends Builtins {
+class Runtime(val env: Env = new Env, useBuiltins: Boolean = true) extends Builtins {
+  
+  if(useBuiltins) env ++= builtins.map(b => (b._1, SNativeFunction(b._1, b._2)))
   
   def eval(expr: SExpr): Validation[RuntimeError, SExpr] = expr match {
-    case SList(SSymbol(func) :: args) => call(func, args.toList)
+    case SList((func @ SSymbol(_)) :: args) => call(func, args.toList)
     case SNumber(_) => expr.success
     case SString(_) => expr.success
     case SBoolean(_) => expr.success
@@ -50,12 +53,28 @@ class Runtime(val env: Env = new Env) extends Builtins {
     case _ => BadSpecialForm(expr).failure
   }
   
-  def call(funcName: String, args: List[SExpr]): Validation[RuntimeError, SExpr] = {
-    val func = builtins.getOrElse(funcName, funcNotFound(funcName) _)
-    func(args)
+  def call(funcExpr: SSymbol, args: List[SExpr]): Validation[RuntimeError, SExpr] = {
+    println("Calling " + funcExpr.toString + " with " + args.map(_.toString))
+    println(eval(funcExpr))
+    eval(funcExpr).flatMap {
+      case f @ SNativeFunction(_, _) => f(args)
+      case f @ SLambda(params, vararg, body, closure) => {
+        if (params.length != args.length && vararg == None) {
+          WrongArgumentNumber(f.toString, params.length, args.length).failure 
+        }
+        else {
+          val remainingArgs = args.drop(params.length)
+          closure ++= params.zip(args)
+          vararg match {
+            case Some(varargName) => closure += (varargName -> SList(remainingArgs))
+            case None =>
+          }
+          val evalBody = new Runtime(closure, false).eval _
+          body.map(evalBody).last
+        }
+      } 
+      case e => NotFunction(e).failure
+    }
   }
-  
-  def funcNotFound(name: String)(args: List[SExpr]): Validation[RuntimeError, SExpr] =
-    FunctionNotFound(name).failure
   
 }
