@@ -57,7 +57,7 @@ class Runtime extends Builtins {
   def call(funcExpr: SSymbol, args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = {
     // println("Calling " + funcExpr.toString + " with " + args.map(_.toString))
     eval(env)(funcExpr).flatMap {
-      case f @ SNativeFunction(_, _) => f(args, env)
+      case SNativeFunction(name, f) => f(args, env)
       case f @ SLambda(params, vararg, body, closure) => {
         if (params.length != args.length && vararg == None) {
           WrongArgumentNumber(f.toString, params.length, args.length).failure 

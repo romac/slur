@@ -38,7 +38,6 @@ case class SDottedList(elements: List[SExpr], override val last: SExpr) extends 
 case class SNativeFunction(name: String, f: (List[SExpr], Env) => Validation[RuntimeError, SExpr]) extends SExpr {
   val typeName = "Native Function"
   
-  def apply(args: List[SExpr], env: Env) = f(args, env)
   override def toString = s"<native function '$name'>" 
 }
 

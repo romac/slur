@@ -28,7 +28,7 @@ class Env(val parent: Option[Env] = None) {
   
   def extend = new Env(Some(this))
   
-  override def toString = asString(List.fill(parentsNum)("  ").mkString)
+  /*override def toString = asString(List.fill(parentsNum)("  ").mkString)
     
   protected def asString(indent: String): String = {
     val str = bindings.map(b => b._1 + " = " + b._2).map(indent + _).mkString("\n")
@@ -46,6 +46,6 @@ class Env(val parent: Option[Env] = None) {
       case None => 0
     }
     loop(0)
-  }
+  }*/
     
 }
