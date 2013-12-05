@@ -228,6 +228,16 @@ trait Builtins { self: Runtime =>
       case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
+  
+  object apply extends StdFunction("apply") {
+    def applyEvaled(args: List[SExpr], env: Env) = args match {
+      case arg1 :: arg2 :: Nil => (arg1, arg2) match {
+        case (f, fargs: SList) => call(f, fargs.elements, env)
+        case (_, notList) => TypeMismatch("List", notList).failureNel
+      }
+      case _ => WrongArgumentNumber(name, 2, args.length).failureNel
+    }
+  }
 
   object define extends Function("define") {
     def apply(args: List[SExpr], env: Env) = args match {
@@ -278,7 +288,7 @@ trait Builtins { self: Runtime =>
 
   private val ops = List(add, diff, mul, div, eq, neq, lt, lte, gt, gte,
     sum, quote, ifStmt, car, cdr, cons, isNull, length,
-    list, define, lambda)
+    apply, list, define, lambda)
 
   def builtins = ops.map(op => op.name -> op).toMap
 
