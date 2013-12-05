@@ -24,7 +24,7 @@ case class BadSpecialForm(expr: SExpr) extends RuntimeError {
 }
 
 case class WrongArgumentNumber(func: String, expected: Int, found: Int) extends RuntimeError {
-  def msg = s"Wrong argument number: Function '$func' expects $expected arguments, found $found."   
+  def msg = s"Wrong argument number: Function '$func' expects $expected arguments, found $found."
 }
 case class NotFunction(func: SExpr) extends RuntimeError {
   def msg = s"'$func' is not a function."
@@ -37,9 +37,8 @@ case class BadLambdaDef(expr: SExpr) extends RuntimeError {
 }
 
 class Runtime extends Builtins {
-  
+
   def eval(env: Env)(expr: SExpr): Validation[RuntimeError, SExpr] = {
-    // println(s"Evaluating '$expr' with environment:\n$env")
     expr match {
       case SList((func @ SSymbol(_)) :: args) => call(func, args.toList, env)
       case SNumber(_) => expr.success
@@ -53,14 +52,13 @@ class Runtime extends Builtins {
       case _ => BadSpecialForm(expr).failure
     }
   }
-  
+
   def call(funcExpr: SSymbol, args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = {
-    // println("Calling " + funcExpr.toString + " with " + args.map(_.toString))
     eval(env)(funcExpr).flatMap {
       case SNativeFunction(name, f) => f(args, env)
       case f @ SLambda(params, vararg, body, closure) => {
         if (params.length != args.length && vararg == None) {
-          WrongArgumentNumber(f.toString, params.length, args.length).failure 
+          WrongArgumentNumber(f.toString, params.length, args.length).failure
         }
         else {
           val func = new StdFunction(funcExpr.toString) {
@@ -72,15 +70,14 @@ class Runtime extends Builtins {
                   closure += (varargName -> SList(remainingArgs))
                 case None =>
               }
-              // println(funcExpr.toString + ":\n" + closure.toString)
               body.map(eval(closure)).last
             }
           }
           func(args, env)
         }
-      } 
+      }
       case e => NotFunction(e).failure
     }
   }
-  
+
 }
