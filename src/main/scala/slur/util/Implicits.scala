@@ -1,10 +1,7 @@
-package slur
+package slur.util
 
 import scalaz._
-import Scalaz._
-import java.util.concurrent.atomic.AtomicReference
-import scala.annotation.tailrec
-import java.util.concurrent.atomic.AtomicBoolean
+import scalaz.Scalaz._
 
 object Implicits {
 

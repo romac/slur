@@ -1,8 +1,12 @@
-package slur
+package slur.cli
 
+import slur._
+import slur.ast._
+import slur.runtime._
 import java.io.FileReader
 import java.util.Scanner
 import scalaz._
+import slur.parser.Parser
 
 object CLI {
 

@@ -1,10 +1,14 @@
-package slur
+package slur.runtime
 
 // TODO: Use implicits instead of explicit pack/unpackers.
 
+import slur.ast._
+import slur.errors.RuntimeErrors._
+import slur.util.Implicits._
 import scalaz._
-import Scalaz._
-import Implicits._
+import scalaz.Scalaz._
+import slur.ast.SExpr.listToSList
+import slur.ast.SExpr.stringToSSymbol
 
 trait Builtins { self: Runtime =>
 

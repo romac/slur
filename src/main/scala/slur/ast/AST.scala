@@ -1,21 +1,23 @@
-package slur
 
+package slur.ast
+
+import slur._
+import slur.runtime._
+import slur.errors.RuntimeErrors._
 import scala.collection.immutable.{LinearSeq, StringLike}
 import scala.collection.mutable.Builder
 import scalaz._
-import Scalaz._
+import scalaz.Scalaz._
 
 trait Unpacker[T] {
   def unpack(e: SExpr): Validation[TypeError, T]
 }
 
 sealed trait SExpr {
-  val typeName: String
+  def typeName = this.getClass.getName
 }
 
 case class SList(elements: List[SExpr]) extends SExpr with LinearSeq[SExpr] {
-  val typeName = "List"
-
   def length = elements.length
   def apply(idx: Int): SExpr = elements(idx)
   override def iterator = elements.iterator
@@ -27,8 +29,6 @@ object SList {
 }
 
 case class SDottedList(elements: List[SExpr], override val last: SExpr) extends SExpr with LinearSeq[SExpr] {
-  val typeName = "DottedList"
-
   def length = elements.length + 1
   def apply(idx: Int): SExpr = (elements :+ last).apply(idx)
   override def iterator = (elements :+ last).iterator
@@ -36,14 +36,10 @@ case class SDottedList(elements: List[SExpr], override val last: SExpr) extends 
 }
 
 case class SNativeFunction(name: String, f: (List[SExpr], Env) => Validation[RuntimeError, SExpr]) extends SExpr {
-  val typeName = "Native Function"
-
   override def toString = s"<native function '$name'>"
 }
 
 case class SLambda(params: List[String], vararg: Option[String], body: List[SExpr], closure: Env) extends SExpr {
-  val typeName = "Lambda"
-
   override def toString =
     "(lambda (" ++ params.mkString(" ") ++ (vararg match {
       case Some(arg) => " . " ++ arg
@@ -52,8 +48,6 @@ case class SLambda(params: List[String], vararg: Option[String], body: List[SExp
 }
 
 case class SSymbol(name: String)    extends SExpr {
-  val typeName = "Symbol"
-
   override def toString = name
 }
 
@@ -65,8 +59,6 @@ object SSymbol extends Unpacker[String] {
 }
 
 case class SNumber(value: Double)   extends SExpr {
-  val typeName = "Number"
-
   override def toString = value.toString
 }
 
@@ -78,8 +70,6 @@ object SNumber extends Unpacker[Double] {
 }
 
 case class SBoolean(value: Boolean) extends SExpr {
-  val typeName = "Boolean"
-
   override def toString = if (value) "#t" else "#f"
 }
 
@@ -91,8 +81,6 @@ object SBoolean extends Unpacker[Boolean] {
 }
 
 case class SString(value: String)   extends SExpr with StringLike[SString] {
-  val typeName = "String"
-
   def seq = value.seq
   def newBuilder: Builder[Char, SString] = new StringBuilder mapResult(SString.apply)
   override def toString = "\"" + value + "\""

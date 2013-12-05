@@ -1,10 +1,11 @@
-package slur
+package slur.parser
 
+import slur._
+import slur.ast._
 import scalaz._
-import Scalaz._
-
+import scalaz.Scalaz._
 import scala.util.parsing.combinator._
-import scala.util.parsing.combinator.lexical.StdLexical
+import java.io.FileReader
 
 case class ParseError(val msg: String) extends SlurError {
   override def toString = s"Parse error: $msg"
@@ -15,9 +16,11 @@ class SExprParsers extends JavaTokenParsers with PackratParsers {
   type P[T] = PackratParser[T]
   type PE = PackratParser[SExpr]
 
-  override val whiteSpace = "".r
+  override val whiteSpace = """""".r
 
-  lazy val space = """\s+""".r
+  val space = """[ \t]+""".r 
+  
+  val eol = """(\r?\n)+""".r
 
   lazy val initial = letter | special
 
@@ -47,7 +50,7 @@ class SExprParsers extends JavaTokenParsers with PackratParsers {
 
   lazy val expr: PE = token | ("(" ~> (list ||| dottedList) <~ ")")
 
-  lazy val program: P[List[SExpr]] = phrase(expr *)
+  lazy val program: P[List[SExpr]] = (space *) ~> phrase(expr *) <~ (space *)
 
 }
 

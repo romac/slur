@@ -1,4 +1,6 @@
-package slur
+package slur.runtime
+
+import slur.ast._
 
 import scala.collection.mutable.HashMap
 

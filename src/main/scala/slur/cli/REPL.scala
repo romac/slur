@@ -1,9 +1,11 @@
-package slur
+package slur.cli
 
+import slur.ast._
+import slur.runtime._
 import scalaz._
-import Scalaz._
-
+import scalaz.Scalaz._
 import java.util.Scanner
+import slur.parser.Parser
 
 class REPL(scanner: Scanner = new Scanner(System.in), runtime: Runtime = new Runtime, env: Env = new Env) {
 
