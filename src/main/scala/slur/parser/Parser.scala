@@ -18,8 +18,8 @@ class SExprParsers extends JavaTokenParsers with PackratParsers {
 
   override val whiteSpace = """""".r
 
-  val space = """[ \t]+""".r 
-  
+  val space = """[ \t]+""".r
+
   val eol = """(\r?\n)+""".r
 
   lazy val initial = letter | special
@@ -58,17 +58,17 @@ object Parser extends SExprParsers {
 
   import java.io.FileReader
 
-  def parse(in: String): Validation[ParseError, SExpr] = {
+  def parse(in: String): ValidationNel[ParseError, SExpr] = {
     parseAll(phrase(expr), in) match {
-      case Success(e, _) => e.success
-      case f: NoSuccess  => ParseError(f.msg).failure
+      case Success(e, _) => e.successNel
+      case f: NoSuccess  => ParseError(f.msg).failureNel
     }
   }
 
-  def parse(in: FileReader): Validation[ParseError, SExpr] = {
+  def parse(in: FileReader): ValidationNel[ParseError, SExpr] = {
     parseAll(phrase(expr), in) match {
-      case Success(e, _) => e.success
-      case f: NoSuccess  => ParseError(f.msg).failure
+      case Success(e, _) => e.successNel
+      case f: NoSuccess  => ParseError(f.msg).failureNel
     }
   }
 }

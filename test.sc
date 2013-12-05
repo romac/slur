@@ -2,22 +2,42 @@ package slur
 
 import scalaz._
 import Scalaz._
-import Implicits._
+import slur.errors.RuntimeErrors._
+// import slur.util.Implicits._
 
 object test {
- 
-  val a = new Env                                 //> a  : slur.Env = 
-  a += ("a" -> SNumber(2))                        //> res0: scala.collection.mutable.HashMap[String,slur.SExpr] = Map(a -> 2.0)
-  
-  val b = new Env(Some(a))                        //> b  : slur.Env = a = 2.0
-                                                  //| 
-  b += ("b" -> SNumber(10))                       //> res1: scala.collection.mutable.HashMap[String,slur.SExpr] = Map(b -> 10.0)
-   
-  "\n" + a.toString                               //> res2: String = "
-                                                  //| a = 2.0"
-  "\n" + b.toString                               //> res3: String = "
-                                                  //| a = 2.0
-                                                  //|   b = 10.0"
-   b("b")                                         //> res4: Option[slur.SExpr] = Some(10.0)
-  
+
+  /*implicit val errorSemigroup = new Semigroup[RuntimeError] {
+    def append(f1: RuntimeError, f2: => RuntimeError): RuntimeError =
+      new RuntimeError {
+        def msg = f1.msg + "\n" + f2.msg
+      }
+  }*/
+
+  def success1 = 1.successNelNel[RuntimeError]       //> success1: => scalaz.ValidationNel[[slur.errors.RuntimeErrors.RuntimeError,Int
+                                                  //| ]
+  def success2 = 2.successNelNel[RuntimeError]       //> success2: => scalaz.ValidationNel[[slur.errors.RuntimeErrors.RuntimeError,Int
+                                                  //| ]
+  def failure1 = TypeError("type error").failureNelNel[Int]
+                                                  //> failure1: => scalaz.ValidationNel[[slur.errors.RuntimeErrors.TypeError,Int]
+  def failure2 = TypeError("type mismatch").failureNelNel[Int]
+                                                  //> failure2: => scalaz.ValidationNel[[slur.errors.RuntimeErrors.TypeError,Int]
+
+  val res = (success1 |@| failure1 |@| failure2) { _ + _ + _ }
+                                                  //> res  : scalaz.Unapply[scalaz.Apply,scalaz.ValidationNel[[slur.errors.RuntimeE
+                                                  //| rrors.RuntimeError,Int]]{type M[X] = scalaz.ValidationNel[[slur.errors.Runtim
+                                                  //| eErrors.RuntimeError,X]; type A = Int}#M[Int] = Failure(NonEmptyList(Error:
+                                                  //| Type error: type error., Error: Type error: type mismatch.))
+
+  val l = List(success1, failure1, success2, failure2)
+                                                  //> l  : List[scalaz.ValidationNel[[slur.errors.RuntimeErrors.RuntimeError,Int]]
+                                                  //| = List(Success(1), Failure(NonEmptyList(Error: Type error: type error.)), Su
+                                                  //| ccess(2), Failure(NonEmptyList(Error: Type error: type mismatch.)))
+
+  l.sequenceU                                     //> res0: scalaz.ValidationNel[scalaz.NonEmptyList[slur.errors.RuntimeErrors.Runtim
+                                                  //| eError],List[Int]] = Failure(NonEmptyList(Error: Type error: type error., Er
+                                                  //| ror: Type error: type mismatch.))
+
+
+
 }

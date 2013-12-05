@@ -67,7 +67,7 @@ class REPL(scanner: Scanner = new Scanner(System.in), runtime: Runtime = new Run
   def eval(input: Input): Output = input match {
     case Expression(raw) => Parser.parse(raw).flatMap(runtime.eval(env)(_)) match {
       case Success(expr) => Value(expr)
-      case Failure(err) => Error(err.msg)
+      case Failure(NonEmptyList(err)) => Error(err.msg)
     }
     case Command(cmd) => exec(cmd)
   }

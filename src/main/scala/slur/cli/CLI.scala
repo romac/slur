@@ -32,7 +32,7 @@ object CLI {
     display(result)
   }
 
-  def display(result: Validation[SlurError, SExpr]) = result match {
+  def display(result: ValidationNel[SlurError, SExpr]) = result match {
     case Success(value) => success(value)
     case Failure(err) => error(err)
   }
@@ -40,7 +40,15 @@ object CLI {
   def success(value: SExpr) = {
     println(value)
   }
-
+  
+  def error(errs: NonEmptyList[SlurError]) = {
+    errs foreach { err =>
+      println(err.msg)
+      err.printStackTrace()
+    }
+    System.exit(1)
+  } 
+  
   def error(msg: String) = {
     println(msg)
     System.exit(1)
@@ -48,7 +56,7 @@ object CLI {
 
   def error(e: SlurError) = {
     println(e.msg)
-    e.printStackTrace();
+    e.printStackTrace()
     System.exit(1)
   }
 

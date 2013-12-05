@@ -4,6 +4,6 @@
 //   "BionicSpirit Snapshots" at "http://maven.bionicspirit.com/snapshots/"
 // )
 
-libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.0.4"
+libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.0.5"
 
 // libraryDependencies += "com.bionicspirit" %% "scala-atomic" % "0.1"

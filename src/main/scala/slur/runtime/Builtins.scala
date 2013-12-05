@@ -15,12 +15,12 @@ trait Builtins { self: Runtime =>
   trait PackUnpack[A, B] { self: Function =>
 
     val packer: B => SExpr
-    val unpacker: SExpr => Validation[RuntimeError, A]
+    val unpacker: SExpr => ValidationNel[RuntimeError, A]
 
-    protected def unpack(xs: List[SExpr]): Validation[RuntimeError, List[A]] =
-      xs.map(unpacker).sequenceV
+    protected def unpack(xs: List[SExpr]): ValidationNel[RuntimeError, List[A]] =
+      xs.map(unpacker).sequenceU
 
-    protected def unpack(e: SExpr): Validation[RuntimeError, A] =
+    protected def unpack(e: SExpr): ValidationNel[RuntimeError, A] =
       unpacker(e)
 
     protected def pack(value: B): SExpr =
@@ -30,59 +30,59 @@ trait Builtins { self: Runtime =>
   }
 
   abstract class Function(val name: String)
-    extends ((List[SExpr], Env) => Validation[RuntimeError, SExpr]) {
+      extends ((List[SExpr], Env) => ValidationNel[RuntimeError, SExpr]) {
 
-    def apply(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr]
+    def apply(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr]
   }
 
   abstract class StdFunction(name: String) extends Function(name) {
 
-    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr]
+    def applyEvaled(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr]
 
-    def apply(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = {
+    def apply(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr] = {
       for {
-        evaled <- args.map(eval(env)).sequenceV
+        evaled <- args.map(eval(env)).sequenceU
         result <- applyEvaled(evaled, env)
       } yield result
     }
   }
 
   abstract class UnaryFunction[A, B](name: String)
-    extends StdFunction(name) with PackUnpack[A, B] {
+      extends StdFunction(name) with PackUnpack[A, B] {
 
     def op(a: A): B
 
-    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
+    def applyEvaled(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr] = args match {
       case x :: Nil => for (a <- unpack(x)) yield pack(op(a))
-      case _ => WrongArgumentNumber(name, 1, args.length).failure
+      case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
 
   }
 
   abstract class BinaryFunction[A, B](name: String)
-    extends StdFunction(name) with PackUnpack[A, B] {
+      extends StdFunction(name) with PackUnpack[A, B] {
 
     def op(a: A, b: A): B
 
-    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
+    def applyEvaled(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr] = args match {
       case x :: y :: Nil =>
         for {
           a <- unpack(x)
           b <- unpack(y)
         } yield pack(op(a, b))
-      case _ => WrongArgumentNumber(name, 2, args.length).failure
+      case _ => WrongArgumentNumber(name, 2, args.length).failureNel
     }
 
   }
 
   abstract class FoldFunction[T, Z](name: String)
-    extends StdFunction(name) with PackUnpack[T, Z] {
+      extends StdFunction(name) with PackUnpack[T, Z] {
 
     val zero: Z
     def fold(acc: Z, elem: T): Z
 
-    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
-      case Nil => pack(zero).success
+    def applyEvaled(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr] = args match {
+      case Nil => pack(zero).successNel
       case x :: xs =>
         for (unpacked <- unpack(args))
           yield pack(unpacked.foldLeft(zero)(fold))
@@ -90,13 +90,13 @@ trait Builtins { self: Runtime =>
   }
 
   abstract class ReduceFunction[A](name: String)
-    extends StdFunction(name) with PackUnpack[A, A] {
+      extends StdFunction(name) with PackUnpack[A, A] {
 
     val zero: A
     def reduce(a: A, b: A): A
 
-    def applyEvaled(args: List[SExpr], env: Env): Validation[RuntimeError, SExpr] = args match {
-      case Nil => pack(zero).success
+    def applyEvaled(args: List[SExpr], env: Env): ValidationNel[RuntimeError, SExpr] = args match {
+      case Nil => pack(zero).successNel
       case x :: xs =>
         for (unpacked <- unpack(args))
           yield pack(unpacked.reduce(reduce))
@@ -151,8 +151,8 @@ trait Builtins { self: Runtime =>
 
   object quote extends Function("quote") {
     override def apply(args: List[SExpr], env: Env) = args match {
-      case x :: Nil => x.success
-      case _ => WrongArgumentNumber(name, 1, args.length).failure
+      case x :: Nil => x.successNel
+      case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
 
@@ -161,71 +161,71 @@ trait Builtins { self: Runtime =>
       case pred :: conseq :: alt :: Nil => eval(env)(pred).flatMap {
         case SBoolean(true) => eval(env)(conseq)
         case SBoolean(false) => eval(env)(alt)
-        case other => TypeMismatch("boolean", other.typeName).failure
+        case other => TypeMismatch("boolean", other.typeName).failureNel
       }
-      case _ => WrongArgumentNumber(name, 3, args.length).failure
+      case _ => WrongArgumentNumber(name, 3, args.length).failureNel
     }
   }
 
   object car extends StdFunction("car") {
     def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
-        case SList(x :: xs) => x.success
-        case SDottedList(x :: xs, _) => x.success
-        case other => TypeMismatch("list", other.typeName).failure
+        case SList(x :: xs) => x.successNel
+        case SDottedList(x :: xs, _) => x.successNel
+        case other => TypeMismatch("list", other.typeName).failureNel
       }
-      case _ => WrongArgumentNumber(name, 1, args.length).failure
+      case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
 
   object cdr extends StdFunction("cdr") {
     def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
-        case SList(x :: xs) => SList(xs).success
-        case SDottedList(List(_), x) => x.success
-        case SDottedList(_ :: xs, x) => SDottedList(xs, x).success
-        case other => TypeMismatch("list", other.typeName).failure
+        case SList(x :: xs) => SList(xs).successNel
+        case SDottedList(List(_), x) => x.successNel
+        case SDottedList(_ :: xs, x) => SDottedList(xs, x).successNel
+        case other => TypeMismatch("list", other.typeName).failureNel
       }
-      case _ => WrongArgumentNumber(name, 1, args.length).failure
+      case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
 
   object cons extends StdFunction("cons") {
     def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: arg2 :: Nil => (arg1, arg2) match {
-        case (x, SList(Nil)) => SList(x :: Nil).success
-        case (x, SList(xs)) => SList(x :: xs).success
-        case (x, SDottedList(xs, xlast)) => SDottedList(x :: xs, xlast).success
-        case (x, y) => SList(x :: y :: Nil).success
+        case (x, SList(Nil)) => SList(x :: Nil).successNel
+        case (x, SList(xs)) => SList(x :: xs).successNel
+        case (x, SDottedList(xs, xlast)) => SDottedList(x :: xs, xlast).successNel
+        case (x, y) => SList(x :: y :: Nil).successNel
       }
-      case _ => WrongArgumentNumber(name, 2, args.length).failure
+      case _ => WrongArgumentNumber(name, 2, args.length).failureNel
     }
   }
 
   object isNull extends StdFunction("null?") {
     def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
-        case SList(Nil) => SBoolean(true).success
-        case _ => SBoolean(false).success
+        case SList(Nil) => SBoolean(true).successNel
+        case _ => SBoolean(false).successNel
       }
-      case _ => WrongArgumentNumber(name, 1, args.length).failure
+      case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
 
   object list extends StdFunction("list") {
     def applyEvaled(args: List[SExpr], env: Env) = {
-      if(!args.isEmpty) SList(args).success
-      else WrongArgumentNumber(name, 1, args.length).failure
+      if (!args.isEmpty) SList(args).successNel
+      else WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
 
   object length extends StdFunction("length") {
     def applyEvaled(args: List[SExpr], env: Env) = args match {
       case arg1 :: Nil => arg1 match {
-        case SList(xs) => SNumber(xs.length).success
-        case other => TypeMismatch("List", other.typeName).failure
+        case SList(xs) => SNumber(xs.length).successNel
+        case other => TypeMismatch("List", other.typeName).failureNel
       }
-      case _ => WrongArgumentNumber(name, 1, args.length).failure
+      case _ => WrongArgumentNumber(name, 1, args.length).failureNel
     }
   }
 
@@ -236,7 +236,7 @@ trait Builtins { self: Runtime =>
       case SSymbol(name) :: expr :: Nil => eval(env)(expr) match {
         case Success(value) => {
           env += (name -> value)
-          value.success
+          value.successNel
         }
         case f @ Failure(_) => f
       }
@@ -245,15 +245,15 @@ trait Builtins { self: Runtime =>
       case SList(SSymbol(name) :: params) :: body =>
         val lambda = SLambda(params.map(_.toString), None, body, env.extend)
         env += (name -> lambda)
-        lambda.success
+        lambda.successNel
 
       // (define (name param1 param2 ... paramN . varArgs) body)
       case SDottedList(SSymbol(name) :: params, varargs) :: body =>
         val lambda = SLambda(params.map(_.toString), Some(varargs.toString), body, env.extend)
         env += (name -> lambda)
-        lambda.success
+        lambda.successNel
 
-      case (other :: _) => TypeMismatch("Symbol", other.typeName).failure
+      case (other :: _) => TypeMismatch("Symbol", other.typeName).failureNel
     }
   }
 
@@ -262,23 +262,23 @@ trait Builtins { self: Runtime =>
 
       // (lambda (param1 param2 ... paramN) body)
       case SList(params) :: body =>
-        SLambda(params.map(_.toString), None, body, env.extend).success
+        SLambda(params.map(_.toString), None, body, env.extend).successNel
 
       // (lambda (param1 param2 ... paramN . varargs) body)
       case SDottedList(params, varargs) :: body =>
-        SLambda(params.map(_.toString), Some(varargs.toString), body, env.extend).success
+        SLambda(params.map(_.toString), Some(varargs.toString), body, env.extend).successNel
 
       // (lambda varargs body)
       case varargs @ SSymbol(_) :: body =>
-        SLambda(Nil, Some(varargs.toString), body, env.extend).success
+        SLambda(Nil, Some(varargs.toString), body, env.extend).successNel
 
-      case expr => BadLambdaDef(expr).failure
+      case expr => BadLambdaDef(expr).failureNel
     }
   }
 
   private val ops = List(add, diff, mul, div, eq, neq, lt, lte, gt, gte,
-                sum, quote, ifStmt, car, cdr, cons, isNull, length,
-                list, define, lambda)
+    sum, quote, ifStmt, car, cdr, cons, isNull, length,
+    list, define, lambda)
 
   def builtins = ops.map(op => op.name -> op).toMap
 

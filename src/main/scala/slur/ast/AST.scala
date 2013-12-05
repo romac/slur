@@ -10,7 +10,7 @@ import scalaz._
 import scalaz.Scalaz._
 
 trait Unpacker[T] {
-  def unpack(e: SExpr): Validation[TypeError, T]
+  def unpack(e: SExpr): ValidationNel[TypeError, T]
 }
 
 sealed trait SExpr {
@@ -35,7 +35,7 @@ case class SDottedList(elements: List[SExpr], override val last: SExpr) extends 
   override def toString =  "(" + elements.mkString(" ") + " . " + last + ")"
 }
 
-case class SNativeFunction(name: String, f: (List[SExpr], Env) => Validation[RuntimeError, SExpr]) extends SExpr {
+case class SNativeFunction(name: String, f: (List[SExpr], Env) => ValidationNel[RuntimeError, SExpr]) extends SExpr {
   override def toString = s"<native function '$name'>"
 }
 
@@ -52,9 +52,9 @@ case class SSymbol(name: String)    extends SExpr {
 }
 
 object SSymbol extends Unpacker[String] {
-  def unpack(e: SExpr): Validation[TypeError, String] = e match {
-    case SSymbol(value) => value.success
-    case _ => TypeError(s"Cannot unpack '$e' to a symbol.").failure
+  def unpack(e: SExpr): ValidationNel[TypeError, String] = e match {
+    case SSymbol(value) => value.successNel
+    case _ => TypeError(s"Cannot unpack '$e' to a symbol.").failureNel
   }
 }
 
@@ -63,9 +63,9 @@ case class SNumber(value: Double)   extends SExpr {
 }
 
 object SNumber extends Unpacker[Double] {
-  def unpack(e: SExpr): Validation[TypeError, Double] = e match {
-    case SNumber(value) => value.success
-    case _ => TypeError(s"Cannot unpack '$e' to a number.").failure
+  def unpack(e: SExpr): ValidationNel[TypeError, Double] = e match {
+    case SNumber(value) => value.successNel
+    case _ => TypeError(s"Cannot unpack '$e' to a number.").failureNel
   }
 }
 
@@ -74,9 +74,9 @@ case class SBoolean(value: Boolean) extends SExpr {
 }
 
 object SBoolean extends Unpacker[Boolean] {
-  def unpack(e: SExpr): Validation[TypeError, Boolean] = e match {
-    case SBoolean(value) => value.success
-    case _ => TypeError(s"Cannot unpack '$e' to a boolean.").failure
+  def unpack(e: SExpr): ValidationNel[TypeError, Boolean] = e match {
+    case SBoolean(value) => value.successNel
+    case _ => TypeError(s"Cannot unpack '$e' to a boolean.").failureNel
   }
 }
 
@@ -87,9 +87,9 @@ case class SString(value: String)   extends SExpr with StringLike[SString] {
 }
 
 object SString extends Unpacker[String] {
-  def unpack(e: SExpr): Validation[TypeError, String] = e match {
-    case SString(value) => value.success
-    case _ => TypeError(s"Cannot unpack '$e' to a string.").failure
+  def unpack(e: SExpr): ValidationNel[TypeError, String] = e match {
+    case SString(value) => value.successNel
+    case _ => TypeError(s"Cannot unpack '$e' to a string.").failureNel
   }
 }
 
